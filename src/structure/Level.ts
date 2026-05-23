@@ -201,8 +201,18 @@ export class Level {
 
                 positions[i] = [startPos[0], startPos[1]];
 
-                // 计算下一个位置
-                const angle = angleData[i] === 999 ? (angleData[i - 1] ?? 0) + 180 : angleData[i];
+                // 计算下一个位置（向前回溯连续999）
+                let angle: number;
+                if (angleData[i] === 999) {
+                    let minus = 1;
+                    while (i - minus >= 0 && angleData[i - minus] === 999) {
+                        minus++;
+                    }
+                    const realAngle = i - minus >= 0 ? angleData[i - minus] : 0;
+                    angle = realAngle + (minus - 1) * 180;
+                } else {
+                    angle = angleData[i];
+                }
                 const rad = angle * Math.PI / 180;
                 startPos[0] += Math.cos(rad);
                 startPos[1] += Math.sin(rad);
@@ -475,7 +485,13 @@ export class Level {
         let prev = 0;
         if (i === 0) { this._angleDir = 180; }
         if (agd === 999) {
-            this._angleDir = this._normalizeAngle(lstagd);
+            // 向前回溯（1-based i → tiles 0-based index: i-1 是当前tile）
+            let minus = 1;
+            while (i - minus - 1 >= 0 && this.tiles[i - minus - 1]?.direction === 999) {
+                minus++;
+            }
+            const realAngle = i - minus - 1 >= 0 ? this.tiles[i - minus - 1].direction! : 0;
+            this._angleDir = this._normalizeAngle(realAngle + (minus - 1) * 180);
             if (isNaN(this._angleDir)) {
                 this._angleDir = 0;
             }
@@ -526,7 +542,13 @@ export class Level {
         let prev = 0;
         if (i === 0) { this._angleDir = 180; }
         if (agd[i] === 999) {
-            this._angleDir = this._normalizeAngle(agd[i - 1]);
+            // 向前回溯，找到第一个非999的真实角度
+            let minus = 1;
+            while (i - minus >= 0 && agd[i - minus] === 999) {
+                minus++;
+            }
+            const realAngle = i - minus >= 0 ? agd[i - minus] : 0;
+            this._angleDir = this._normalizeAngle(realAngle + (minus - 1) * 180);
             if (isNaN(this._angleDir)) {
                 this._angleDir = 0;
             }
@@ -597,10 +619,19 @@ export class Level {
         // 触发开始事件
         this._emitProgress('tilePosition', 0, totalTiles);
 
-        // 预处理 floats 数组
+        // 预处理 floats 数组（向前回溯连续999）
         const floats = new Array<number>(totalTiles);
         for (let i = 0; i < totalTiles; i++) {
-            floats[i] = angles[i] === 999 ? angles[i - 1] + 180 : angles[i];
+            if (angles[i] === 999) {
+                let minus = 1;
+                while (i - minus >= 0 && angles[i - minus] === 999) {
+                    minus++;
+                }
+                const realAngle = i - minus >= 0 ? angles[i - minus] : 0;
+                floats[i] = realAngle + (minus - 1) * 180;
+            } else {
+                floats[i] = angles[i];
+            }
         }
 
         // 进度事件触发频率：每 1% 或最少每 100 个 tile 触发一次

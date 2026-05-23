@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -rn \"trackpos\\\\|tilepos\\\\|_parseAngle\\\\|_parsechangedAngle\\\\|_normalizeAngle\\\\|angleDir\\\\|ball\\\\|render\\\\|position\" I:/Desktop/.New/ADOFAI-Js/dist --include=*.js --include=*.mjs)",
+      "Bash(grep -rni fmol I:/Desktop/.New/ADOFAI-Js --include=*.ts --include=*.js --include=*.mjs --include=*.json --include=*.html)",
+      "Bash(find I:/Desktop/.New/ADOFAI-Js -name *.ts -type f)",
+      "Bash(find I:/Desktop/.New/ADOFAI-Js/src -name *.ts -type f)"
+    ]
+  }
+}
