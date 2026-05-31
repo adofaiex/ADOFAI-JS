@@ -1,10 +1,26 @@
-import { AdofaiEvent, LevelOptions, EventCallback, GuidCallback, Tile, ParseProvider, ParseProgressEvent, PrecomputedProgressEvents, LightweightPrecomputedData } from './interfaces';
+import { AdofaiEvent, ActionData, LevelOptions, EventCallback, GuidCallback, Tile, ParseProvider, ParseProgressEvent, PrecomputedProgressEvents, LightweightPrecomputedData } from './interfaces';
 import pathData from '../pathdata';
 import exportAsADOFAI from './format'
 import BaseParser from '../parser';
 import effectProcessor from '../filter/effectProcessor';
 import { EffectCleanerType } from '../filter/effectProcessor';
-import { v4 as uuid } from 'uuid';
+function uuid(): string {
+    const r = new Uint8Array(16);
+    const crypto = globalThis.crypto ?? (globalThis as any)?.msCrypto;
+    if (crypto?.getRandomValues) {
+        crypto.getRandomValues(r);
+    } else {
+        for (let i = 0; i < 16; i++) r[i] = Math.floor(Math.random() * 256);
+    }
+    r[6] = (r[6] & 0x0f) | 0x40;
+    r[8] = (r[8] & 0x3f) | 0x80;
+    const h = (b: number) => (b >>> 4).toString(16) + (b & 0x0f).toString(16);
+    return h(r[0]) + h(r[1]) + h(r[2]) + h(r[3]) + '-'
+        + h(r[4]) + h(r[5]) + '-'
+        + h(r[6]) + h(r[7]) + '-'
+        + h(r[8]) + h(r[9]) + '-'
+        + h(r[10]) + h(r[11]) + h(r[12]) + h(r[13]) + h(r[14]) + h(r[15]);
+}
 import * as presets from '../filter/presets';
 
 export class Level {
@@ -512,7 +528,7 @@ export class Level {
     }
 
 
-    private _filterByFloor(arr: AdofaiEvent[], i: number): AdofaiEvent[] {
+    private _filterByFloor(arr: AdofaiEvent[], i: number): ActionData[] {
         if (!Array.isArray(arr)) return [];
         let actionT = arr.filter(item => item.floor === i);
         this._twirlCount += actionT.filter(t => t.eventType === 'Twirl').length;
@@ -527,7 +543,7 @@ export class Level {
             (Array.isArray(tile?.actions) ? tile.actions : []).map(({ floor, ...rest }) => ({ floor: index, ...rest } as AdofaiEvent))
         );
     }
-    private _filterByFloorwithDeco(arr: AdofaiEvent[], i: number): AdofaiEvent[] {
+    private _filterByFloorwithDeco(arr: AdofaiEvent[], i: number): ActionData[] {
         if (!Array.isArray(arr)) return [];
         let actionT = arr.filter(item => item.floor === i);
         return actionT.map(({ floor, ...rest }) => rest);
@@ -568,7 +584,7 @@ export class Level {
         return prev;
     }
 
-    public filterActionsByEventType(en: string): { index: number, action: AdofaiEvent }[] {
+    public filterActionsByEventType(en: string): { index: number, action: ActionData }[] {
         return Object.entries(this.tiles)
             .flatMap(([index, a]) =>
                 (Array.isArray(a.actions) ? a.actions : []).map(b => ({ b, index }))
@@ -580,7 +596,7 @@ export class Level {
             }));
     }
 
-    public getActionsByIndex(en: string, index: number): { count: number, actions: AdofaiEvent[] } {
+    public getActionsByIndex(en: string, index: number): { count: number, actions: ActionData[] } {
         const filtered = this.filterActionsByEventType(en);
         const matches = filtered.filter(item => item.index === index);
 

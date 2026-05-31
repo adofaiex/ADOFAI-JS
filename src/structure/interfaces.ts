@@ -1,4 +1,10 @@
 export interface AdofaiEvent {
+    floor: number;
+    eventType: string;
+    [key: string]: any;
+}
+
+export interface ActionData {
     eventType: string;
     [key: string]: any;
 }
@@ -25,8 +31,8 @@ export interface GuidCallback {
 export interface Tile {
     direction?: number;
     angle?: number;
-    actions: AdofaiEvent[];
-    addDecorations?: AdofaiEvent[];
+    actions: ActionData[];
+    addDecorations?: ActionData[];
     _lastdir?: number;
     twirl?: number;
     position?: number[];
