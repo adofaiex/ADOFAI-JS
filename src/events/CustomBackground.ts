@@ -1,19 +1,20 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { Vec2, BgDisplayMode, BgShapeType, ABoolean } from '../types';
 
 export interface CustomBackground extends AdofaiEvent {
     eventType: 'CustomBackground';
     bgImage?: string;
     bgImageColor?: string;
-    parallax?: [number, number];
-    bgDisplayMode?: 'FitToScreen' | 'Unscaled' | 'Tiled';
-    lockRot?: boolean;
-    loopBG?: boolean;
+    parallax?: Vec2;
+    bgDisplayMode?: BgDisplayMode;
+    lockRot?: ABoolean;
+    loopBG?: ABoolean;
     scalingRatio?: number;
-    imageSmoothing?: boolean;
-    showDefaultBGIfNoImage?: boolean;
-    showDefaultBGTile?: boolean;
+    imageSmoothing?: ABoolean;
+    showDefaultBGIfNoImage?: ABoolean;
+    showDefaultBGTile?: ABoolean;
     defaultBGTileColor?: string;
-    defaultBGShapeType?: 'Disabled' | 'Tile' | 'Circle' | 'Diamond' | 'Triangle' | 'Hexagon' | 'Donut' | 'Pentagon' | 'Custom';
+    defaultBGShapeType?: BgShapeType;
     defaultBGShapeColor?: string;
     duration?: number;
     easing?: string;

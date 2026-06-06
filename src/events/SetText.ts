@@ -1,4 +1,5 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { Vec2 } from '../types';
 
 export interface SetText extends AdofaiEvent {
     eventType: 'SetText';
@@ -12,8 +13,8 @@ export interface SetText extends AdofaiEvent {
     fadeIn?: number;
     fadeOut?: number;
     easing?: string;
-    positionOffset?: [number, number];
+    positionOffset?: Vec2;
     rotationOffset?: number;
-    scale?: [number, number];
+    scale?: Vec2;
     opacity?: number;
 }

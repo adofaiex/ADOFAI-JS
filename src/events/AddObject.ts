@@ -1,16 +1,17 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { Vec2, ABoolean } from '../types';
 
 export interface AddObject extends AdofaiEvent {
     eventType: 'AddObject';
     object?: string;
-    position?: [number, number];
+    position?: Vec2;
     rotation?: number;
-    scale?: [number, number];
+    scale?: Vec2;
     opacity?: number;
-    parallax?: [number, number];
+    parallax?: Vec2;
     tag?: string;
     depth?: number;
     color?: string;
-    imageSmoothing?: boolean;
+    imageSmoothing?: ABoolean;
     angleOffset?: number;
 }

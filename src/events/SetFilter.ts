@@ -1,8 +1,9 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { FilterType } from '../types';
 
 export interface SetFilter extends AdofaiEvent {
     eventType: 'SetFilter';
-    filterType?: 'Grayscale' | 'Sepia' | 'Invert' | 'Pixellate' | 'Blur' | 'Glitch' | 'Bloom' | 'VHS' | 'Warp' | 'RadialBlur' | 'Custom';
+    filterType?: FilterType;
     intensity?: number;
     duration?: number;
     easing?: string;

@@ -1,4 +1,5 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { Vec2 } from '../types';
 
 export interface AnimateTrack extends AdofaiEvent {
     eventType: 'AnimateTrack';
@@ -7,9 +8,9 @@ export interface AnimateTrack extends AdofaiEvent {
     duration?: number;
     easing?: string;
     tag?: string;
-    positionOffset?: [number, number];
+    positionOffset?: Vec2;
     rotation?: number;
-    scale?: [number, number];
+    scale?: Vec2;
     opacity?: number;
     color?: string;
     colorTo?: string;

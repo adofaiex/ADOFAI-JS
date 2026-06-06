@@ -1,4 +1,5 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { HoldMidSoundTimingRelativeTo } from '../types';
 
 export interface SetHoldSound extends AdofaiEvent {
     eventType: 'SetHoldSound';
@@ -7,7 +8,7 @@ export interface SetHoldSound extends AdofaiEvent {
     holdMidSound?: string;
     holdMidSoundVolume?: number;
     holdMidSoundTiming?: number;
-    holdMidSoundTimingRelativeTo?: 'Start' | 'End';
+    holdMidSoundTimingRelativeTo?: HoldMidSoundTimingRelativeTo;
     holdEndSound?: string;
     holdEndSoundVolume?: number;
     angleOffset?: number;

@@ -1,11 +1,12 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { Vec2, ABoolean } from '../types';
 
 export interface PositionTrack extends AdofaiEvent {
     eventType: 'PositionTrack';
     startTile?: number;
     floorCount?: number;
-    positionOffset?: [number, number];
+    positionOffset?: Vec2;
     easing?: string;
-    editorOnly?: boolean | 'Enabled';
+    editorOnly?: ABoolean;
     angleOffset?: number;
 }

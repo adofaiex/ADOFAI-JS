@@ -1,6 +1,6 @@
 {
   "name": "adofai",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "exports": {
@@ -53,6 +53,11 @@
       "types": "./dist/src/events/index.d.ts",
       "import": "./dist/src/events/index.js",
       "default": "./dist/src/events/index.js"
+    },
+    "./types": {
+      "types": "./dist/src/types.d.ts",
+      "import": "./dist/src/types.js",
+      "default": "./dist/src/types.js"
     }
   },
   "scripts": {

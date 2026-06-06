@@ -1,4 +1,5 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { FlashStyle } from '../types';
 
 export interface Flash extends AdofaiEvent {
     eventType: 'Flash';
@@ -7,7 +8,7 @@ export interface Flash extends AdofaiEvent {
     colorTo?: string;
     colorToDuration?: number;
     colorToEasing?: string;
-    flashStyle?: 'Flash' | 'Reverse' | 'StayBlack' | 'Kill' | 'FlashEx';
+    flashStyle?: FlashStyle;
     opacity?: number;
     easing?: string;
     angleOffset?: number;

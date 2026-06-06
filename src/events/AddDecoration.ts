@@ -1,25 +1,26 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { Vec2, TextAnchor, Hitbox, ABoolean } from '../types';
 
 export interface AddDecoration extends AdofaiEvent {
     eventType: 'AddDecoration';
     decText?: string;
     decTextColor?: string;
     decTextFont?: string;
-    decTextAnchor?: 'UpperLeft' | 'UpperCenter' | 'UpperRight' | 'MiddleLeft' | 'MiddleCenter' | 'MiddleRight' | 'LowerLeft' | 'LowerCenter' | 'LowerRight';
+    decTextAnchor?: TextAnchor;
     decTextScale?: number;
     decTextAngle?: number;
     decTextDepth?: number;
     decorationImage?: string;
     angleOffset?: number;
-    position?: [number, number];
+    position?: Vec2;
     rotation?: number;
-    scale?: [number, number];
-    parallax?: [number, number];
+    scale?: Vec2;
+    parallax?: Vec2;
     opacity?: number;
     color?: string;
     depth?: number;
     tag?: string;
-    imageSmoothing?: boolean;
-    hitbox?: 'None' | 'Kill' | 'PassThrough' | 'NoEffect';
-    failsafe?: boolean;
+    imageSmoothing?: ABoolean;
+    hitbox?: Hitbox;
+    failsafe?: ABoolean;
 }

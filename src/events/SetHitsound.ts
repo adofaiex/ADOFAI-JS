@@ -1,10 +1,11 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { HitsoundType, ABoolean } from '../types';
 
 export interface SetHitsound extends AdofaiEvent {
     eventType: 'SetHitsound';
-    hitsound?: 'Kick' | 'Snare' | 'Hat' | 'Clap' | 'Custom';
+    hitsound?: HitsoundType;
     hitsoundVolume?: number;
     customHitsound?: string;
-    ease?: boolean;
+    ease?: ABoolean;
     angleOffset?: number;
 }

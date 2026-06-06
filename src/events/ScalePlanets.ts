@@ -1,4 +1,5 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { TargetPlanet } from '../types';
 
 export interface ScalePlanets extends AdofaiEvent {
     eventType: 'ScalePlanets';
@@ -6,7 +7,7 @@ export interface ScalePlanets extends AdofaiEvent {
     scale?: number;
     duration?: number;
     easing?: string;
-    targetPlanet?: 'All' | 'Current' | 'Specific';
+    targetPlanet?: TargetPlanet;
     planetNumber?: number;
     angleOffset?: number;
 }

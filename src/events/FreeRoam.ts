@@ -1,11 +1,12 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { AngleCorrectionDir, ABoolean } from '../types';
 
 export interface FreeRoam extends AdofaiEvent {
     eventType: 'FreeRoam';
     duration?: number;
-    angleCorrectionDir?: 'None' | 'CW' | 'CCW';
+    angleCorrectionDir?: AngleCorrectionDir;
     freeRoamAngle?: number;
-    freeRoamAngleLocal?: boolean;
-    editorOnly?: boolean | 'Enabled';
+    freeRoamAngleLocal?: ABoolean;
+    editorOnly?: ABoolean;
     angleOffset?: number;
 }

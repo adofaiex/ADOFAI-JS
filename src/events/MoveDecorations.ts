@@ -1,12 +1,13 @@
 import type { AdofaiEvent } from '../structure/interfaces';
+import type { Vec2 } from '../types';
 
 export interface MoveDecorations extends AdofaiEvent {
     eventType: 'MoveDecorations';
     duration?: number;
     tag?: string;
-    positionOffset?: [number, number];
+    positionOffset?: Vec2;
     rotationOffset?: number;
-    scale?: [number, number];
+    scale?: Vec2;
     opacity?: number;
     color?: string;
     colorTo?: string;
@@ -14,6 +15,6 @@ export interface MoveDecorations extends AdofaiEvent {
     colorToEasing?: string;
     easing?: string;
     angleOffset?: number;
-    parallaxOffset?: [number, number];
-    pivotOffset?: [number, number];
+    parallaxOffset?: Vec2;
+    pivotOffset?: Vec2;
 }
