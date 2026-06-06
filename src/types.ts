@@ -114,3 +114,37 @@ export function isEventEnabled(value: ABoolean | undefined, defaultValue: boolea
   if (typeof value === 'boolean') return value;
   return value === 'Enabled' || value === 'true';
 }
+
+export type TileReferenceType = 'ThisTile' | 'Start' | 'End';
+export type TileReference = [number, TileReferenceType];
+
+export function resolveTileReference(
+  relativeTo: TileReference | undefined,
+  thisTileId: number,
+  totalTiles: number
+): number {
+  if (!relativeTo) return thisTileId;
+  const [offset, type] = relativeTo;
+  let result: number;
+  switch (type) {
+    case 'Start':
+      result = offset;
+      break;
+    case 'End':
+      result = totalTiles - 1 + offset;
+      break;
+    case 'ThisTile':
+    default:
+      result = thisTileId + offset;
+      break;
+  }
+  return Math.max(0, Math.min(result, totalTiles - 1));
+}
+
+export type Vec2Like = [number, number] | { x: number; y: number };
+
+export function normalizeVec2(v: Vec2Like | undefined): [number, number] {
+  if (!v) return [0, 0];
+  if (Array.isArray(v)) return [v[0] ?? 0, v[1] ?? 0];
+  return [v.x ?? 0, v.y ?? 0];
+}
