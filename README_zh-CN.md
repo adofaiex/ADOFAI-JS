@@ -117,16 +117,18 @@ const result = parser.parse(arrayBuffer);
 
 `Level` 类是本库的核心数据结构。它接受 ADOFAI 文件内容（字符串、对象、ArrayBuffer、Uint8Array 或 Buffer），并提供 tile 管理和导出功能。
 
-### 创建
+### 创建 & 加载
 
 ```ts
 import { Level } from 'adofai';
 
 // 从字符串
 const level = new Level(adofaiJsonString);
+await level.load();
 
 // 使用自定义解析器
 const level = new Level(rawData, bufferParser);
+await level.load();
 
 // 从已解析的对象
 const level = new Level({
@@ -135,21 +137,13 @@ const level = new Level({
   actions: [...],
   decorations: [...]
 });
-```
+await level.load();
 
-### 加载
-
-加载是异步的。可以监听 `load` 事件或使用返回的 Promise：
-
-```ts
 // 事件方式
 level.on('load', () => {
   console.log('谱面已加载:', level.tiles.length, '个 tile');
 });
 level.load();
-
-// Promise 方式
-await level.load();
 
 // 进度事件
 level.on('parse:progress', (event) => {
@@ -160,25 +154,72 @@ level.on('parse:progress', (event) => {
 
 进度阶段: `start` → `pathData` | `angleData` → `relativeAngle` → `tilePosition` → `complete`
 
-### 访问数据
+### 数据模型概览
 
-```ts
-// 原始角度数据
-level.angleData;       // number[]
+加载完成后，谱面数据分为两层：
 
-// 解析后的 tiles
-level.tiles;           // Tile[] — 每个 tile 包含 direction, angle, actions 等
-
-// 设置
-level.settings;        // Record<string, any>
-
-// Actions / Decorations（带有 floor 索引的扁平数组）
-level.actions;         // AdofaiEvent[]
-level.__decorations;   // AdofaiEvent[]
+```
+┌────────────────────────────────────────────┐
+│  源数据（初始只读值）                          │
+│  level.angleData       — 原始角度数组          │
+│  level.actions         — 扁平事件列表          │
+│  level.__decorations   — 扁平装饰列表          │
+│  level.settings        — 谱面设置              │
+├────────────────────────────────────────────┤
+│  工作数据（主要操作目标）                      │
+│  level.tiles           — Tile[]              │
+└────────────────────────────────────────────┘
 ```
 
-### 查询事件
+**`level.tiles` 是所有数据操作的核心。** `angleData`、`actions`、`decorations` 等源数组仅为初始输入，修改 tile 后它们不会同步更新。导出时，`angleData`、`actions` 和 `decorations` 会从 `level.tiles` 重新构建。
 
+### Tile 结构
+
+`level.tiles` 数组中每个 tile 的结构如下：
+
+```ts
+interface Tile {
+  direction?: number;       // 原始角度数据值（包含 999）
+  angle?: number;           // 计算后的相对角度（渲染用）
+  _lastdir?: number;        // 前一个 tile 的 direction
+  twirl?: number;           // 累计到当前 tile 的 twirl 次数
+  actions: ActionData[];    // 属于该 tile 的事件
+  addDecorations?: ActionData[]; // 该 tile 上的装饰
+  position?: number[];      // 计算后的 [x, y] 坐标
+  extraProps?: Record<string, any>; // 额外计算数据（angle1, angle2, cangle）
+}
+```
+
+### 操作 Tiles
+
+**读取 tile 数据：**
+```ts
+// 总 tile 数
+level.tiles.length;
+
+// 访问指定 tile
+const tile = level.tiles[42];
+tile.direction;       // 原始角度值
+tile.angle;           // 相对角度
+tile.actions;         // 该 tile 上的事件
+tile.addDecorations;  // 该 tile 上的装饰
+tile.twirl;           // twirl 次数
+tile.position;        // [x, y]（调用 calculateTilePosition 后）
+```
+
+**修改 tiles：**
+```ts
+// 追加一个新 tile
+level.floorOperation({ type: 'append', direction: 180 });
+
+// 在指定索引处插入
+level.floorOperation({ type: 'insert', direction: 90, id: 10 });
+
+// 删除 tile
+level.floorOperation({ type: 'delete', id: 10 });
+```
+
+**跨 tile 查询事件：**
 ```ts
 // 查找所有包含指定事件类型的 tile
 const results = level.filterActionsByEventType('Flash');
@@ -190,26 +231,38 @@ const { count, actions } = level.getActionsByIndex('MoveTrack', 5);
 
 ### 计算 Tile 坐标
 
+为所有 tile 填充 `position` 和 `extraProps`。
+
 ```ts
 const positions = level.calculateTilePosition();
 // 返回 number[][] — 每个 tile（包括终点）的 [x, y] 坐标
-// 同时会更新每个 tile.position
+
+// 调用后，每个 tile.position 被设置
+level.tiles[5].position;   // [x, y]
+level.tiles[5].extraProps; // { angle1, angle2, cangle }
 ```
 
-### Tile 操作
+### 特效过滤（基于 tiles 操作）
+
+所有特效过滤操作都在 `level.tiles` 上就地执行。
 
 ```ts
-// 追加一个新的 tile
-level.floorOperation({ type: 'append', direction: 180 });
+import { Presets } from 'adofai';
 
-// 在指定索引处插入
-level.floorOperation({ type: 'insert', direction: 90, id: 10 });
+// 使用预设
+level.clearEffect('preset_noeffect');
 
-// 删除 tile
-level.floorOperation({ type: 'delete', id: 10 });
+// 自定义过滤 — 只保留指定事件
+level.clearEvent({ type: 'include', events: ['SetSpeed', 'Twirl'] });
+
+// 自定义过滤 — 排除指定事件
+level.clearEvent({ type: 'exclude', events: ['Flash', 'Bloom'] });
+
+// 清除所有 tile 上的装饰
+level.clearDeco();
 ```
 
-### 导出
+### 导出（从 tiles 重建）
 
 ```ts
 // 导出为格式化的 ADOFAI JSON 字符串
@@ -219,12 +272,13 @@ const str = level.export('string', 0, true);
 // 导出为对象
 const obj = level.export('object', 0, true);
 // { angleData, settings, actions, decorations }
+// 三个数组都从 level.tiles 重建
 ```
 
 ### 事件系统
 
 ```ts
-// 监听自定义或生命周期事件
+// 监听生命周期事件
 const guid = level.on('load', (level) => { /* ... */ });
 
 // 通过 GUID 移除监听器
@@ -346,45 +400,7 @@ const moveTrack: Events.MoveTrack = {
 
 ---
 
-## 特效过滤
-
-使用预设或自定义规则清理谱面特效。
-
-### 预设
-
-```ts
-import { Presets } from 'adofai';
-
-// 移除视觉特效（Flash, SetFilter, Bloom 等）
-Presets.preset_noeffect;
-
-// 移除 Hold
-Presets.preset_noholds;
-
-// 移除相机移动
-Presets.preset_nomovecamera;
-
-// 移除所有非游戏性相关内容
-Presets.preset_noeffect_completely;
-```
-
-### 应用过滤
-
-```ts
-// 使用预设
-level.clearEffect('preset_noeffect');
-
-// 自定义过滤 — 只保留指定事件
-level.clearEvent({ type: 'include', events: ['SetSpeed', 'Twirl'] });
-
-// 自定义过滤 — 排除指定事件
-level.clearEvent({ type: 'exclude', events: ['Flash', 'Bloom'] });
-
-// 清除所有装饰
-level.clearDeco();
-```
-
----
+## 特效预设
 
 ## 高级：预计算模式
 

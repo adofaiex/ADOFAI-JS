@@ -117,16 +117,18 @@ Key behaviors:
 
 The `Level` class is the core data structure. It accepts ADOFAI file content (string, object, ArrayBuffer, Uint8Array, or Buffer) and provides tile management and export.
 
-### Create
+### Create & Load
 
 ```ts
 import { Level } from 'adofai';
 
 // From string
 const level = new Level(adofaiJsonString);
+await level.load();
 
 // With custom parser provider
 const level = new Level(rawData, bufferParser);
+await level.load();
 
 // From already-parsed object
 const level = new Level({
@@ -135,21 +137,13 @@ const level = new Level({
   actions: [...],
   decorations: [...]
 });
-```
+await level.load();
 
-### Load
-
-Loading is asynchronous. Listen for the `load` event or use the returned Promise:
-
-```ts
-// Event-based
+// Event-based loading
 level.on('load', () => {
   console.log('Level loaded:', level.tiles.length, 'tiles');
 });
 level.load();
-
-// Promise-based
-await level.load();
 
 // Progress events
 level.on('parse:progress', (event) => {
@@ -160,44 +154,60 @@ level.on('parse:progress', (event) => {
 
 Progress stages: `start` → `pathData` | `angleData` → `relativeAngle` → `tilePosition` → `complete`
 
-### Access Data
+### Data Model Overview
 
-```ts
-// Raw angle data
-level.angleData;       // number[]
+After loading, the level data is organized into two layers:
 
-// Parsed tiles
-level.tiles;           // Tile[] — each tile has direction, angle, actions, etc.
-
-// Settings
-level.settings;        // Record<string, any>
-
-// Actions / Decorations (flat arrays with floor index)
-level.actions;         // AdofaiEvent[]
-level.__decorations;   // AdofaiEvent[]
+```
+┌──────────────────────────────────────────┐
+│  Source Data (read-only initial values)   │
+│  level.angleData       — raw angle array  │
+│  level.actions         — flat event list  │
+│  level.__decorations   — flat deco list   │
+│  level.settings        — level settings   │
+├──────────────────────────────────────────┤
+│  Working Data (primary operation target)  │
+│  level.tiles           — Tile[]          │
+└──────────────────────────────────────────┘
 ```
 
-### Query Events
+**`level.tiles` is where all data operations happen.** The source arrays (`angleData`, `actions`, `decorations`) are initial inputs and are **not** kept in sync when you modify tiles. When you export, `angleData`, `actions`, and `decorations` are reconstructed from `level.tiles`.
+
+### Tile Structure
+
+Each tile in `level.tiles` has the following structure:
 
 ```ts
-// Find all tiles with a specific event type
-const results = level.filterActionsByEventType('Flash');
-// returns { index: number, action: ActionData }[]
-
-// Get events at a specific tile index
-const { count, actions } = level.getActionsByIndex('MoveTrack', 5);
+interface Tile {
+  direction?: number;       // Original angle data value (incl. 999)
+  angle?: number;           // Computed relative angle (for rendering)
+  _lastdir?: number;        // Previous tile's direction
+  twirl?: number;           // Accumulated twirl count up to this tile
+  actions: ActionData[];    // Events belonging to this tile
+  addDecorations?: ActionData[]; // Decorations on this tile
+  position?: number[];      // Computed [x, y] position
+  extraProps?: Record<string, any>; // Extra computed data (angle1, angle2, cangle)
+}
 ```
 
-### Calculate Tile Positions
+### Working with Tiles
 
+**Read tile data:**
 ```ts
-const positions = level.calculateTilePosition();
-// returns number[][] — [x, y] for each tile including endpoint
-// Each tile.position is also updated in-place
+// Total tile count
+level.tiles.length;
+
+// Access a specific tile
+const tile = level.tiles[42];
+tile.direction;       // raw angle value
+tile.angle;           // relative angle
+tile.actions;         // events on this tile
+tile.addDecorations;  // decorations on this tile
+tile.twirl;           // twirl count
+tile.position;        // [x, y] (after calculateTilePosition)
 ```
 
-### Floor Operations
-
+**Modify tiles:**
 ```ts
 // Append a new tile
 level.floorOperation({ type: 'append', direction: 180 });
@@ -209,7 +219,50 @@ level.floorOperation({ type: 'insert', direction: 90, id: 10 });
 level.floorOperation({ type: 'delete', id: 10 });
 ```
 
-### Export
+**Query events across tiles:**
+```ts
+// Find all tiles with a specific event type
+const results = level.filterActionsByEventType('Flash');
+// returns { index: number, action: ActionData }[]
+
+// Get events at a specific tile index
+const { count, actions } = level.getActionsByIndex('MoveTrack', 5);
+```
+
+### Calculate Tile Positions
+
+Populates `tile.position` and `tile.extraProps` for all tiles.
+
+```ts
+const positions = level.calculateTilePosition();
+// returns number[][] — [x, y] for each tile including endpoint
+
+// After this call, each tile.position is set
+level.tiles[5].position;  // [x, y]
+level.tiles[5].extraProps; // { angle1, angle2, cangle }
+```
+
+### Effect Filtering (operates on tiles)
+
+All effect operations modify `level.tiles` in-place.
+
+```ts
+import { Presets } from 'adofai';
+
+// Using a preset
+level.clearEffect('preset_noeffect');
+
+// Custom filter — keep only specific events
+level.clearEvent({ type: 'include', events: ['SetSpeed', 'Twirl'] });
+
+// Custom filter — exclude specific events
+level.clearEvent({ type: 'exclude', events: ['Flash', 'Bloom'] });
+
+// Clear all decorations from all tiles
+level.clearDeco();
+```
+
+### Export (reconstructs from tiles)
 
 ```ts
 // Export as formatted ADOFAI JSON string
@@ -219,12 +272,13 @@ const str = level.export('string', 0, true);
 // Export as object
 const obj = level.export('object', 0, true);
 // { angleData, settings, actions, decorations }
+// All three arrays are reconstructed from level.tiles
 ```
 
 ### Event System
 
 ```ts
-// Listen to custom or lifecycle events
+// Listen to lifecycle events
 const guid = level.on('load', (level) => { /* ... */ });
 
 // Remove listener by GUID
@@ -346,45 +400,9 @@ Full list of event types: `SetSpeed`, `Twirl`, `Checkpoint`, `MoveCamera`, `Cust
 
 ---
 
-## Effect Filtering
-
-Clean up level effects using presets or custom rules.
-
-### Presets
-
-```ts
-import { Presets } from 'adofai';
-
-// Remove visual effects (Flash, SetFilter, Bloom, etc.)
-Presets.preset_noeffect;
-
-// Remove holds
-Presets.preset_noholds;
-
-// Remove camera movements
-Presets.preset_nomovecamera;
-
-// Remove everything gameplay-relevant
-Presets.preset_noeffect_completely;
-```
-
-### Apply Filters
-
-```ts
-// Using a preset
-level.clearEffect('preset_noeffect');
-
-// Custom filter — keep only specific events
-level.clearEvent({ type: 'include', events: ['SetSpeed', 'Twirl'] });
-
-// Custom filter — exclude specific events
-level.clearEvent({ type: 'exclude', events: ['Flash', 'Bloom'] });
-
-// Clear all decorations
-level.clearDeco();
-```
-
 ---
+
+## Effect Presets
 
 ## Advanced: Precompute Mode
 
