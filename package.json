@@ -1,6 +1,6 @@
 {
   "name": "adofai",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "exports": {

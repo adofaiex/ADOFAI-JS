@@ -317,6 +317,9 @@ export class Level {
             const compactOpt = this._compactOption;
             const compact = compactOpt === true
                 || (typeof compactOpt === 'number' && this.angleData.length > compactOpt);
+            if (compact) {
+                console.log(`[adofai] compact tile store: ${this.angleData.length} tiles`);
+            }
 
             createTiles(this.angleData.length, {
                 angleData: this.angleData,

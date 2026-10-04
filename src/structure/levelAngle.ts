@@ -296,9 +296,8 @@ async function createTilesCompact(
         angle: angleData[i],
         relativeAngle: angle,
       });
-      if (i % (batchSize * 10) === 0) {
-        await new Promise(r => setTimeout(r, 0));
-      }
+      // 让出主线程（每批一次，~n/100 次）：保持 UI/输入响应，避免长时间独占。
+      await new Promise(r => setTimeout(r, 0));
     }
   }
   return store;
