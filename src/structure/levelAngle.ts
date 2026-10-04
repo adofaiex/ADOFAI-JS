@@ -1,4 +1,5 @@
 import { AdofaiEvent, ActionData, Tile, ParseProgressEvent } from './interfaces';
+import { CompactTileStore } from './CompactTileStore';
 
 /**
  * 装饰类事件的 eventType 列表。
@@ -151,8 +152,12 @@ const EMPTY_DECOS: AdofaiEvent[] = [];
 export async function createTiles(
   xLength: number,
   opt: CreateTilesOptions,
-  cbs: CreateTilesCallbacks
-): Promise<Tile[]> {
+  cbs: CreateTilesCallbacks,
+  compact: boolean = false,
+): Promise<Tile[] | CompactTileStore> {
+  if (compact) {
+    return createTilesCompact(xLength, opt, cbs);
+  }
   const tiles: Tile[] = new Array(xLength);
   const batchSize = Math.max(100, Math.floor(xLength / 100));
 
@@ -222,6 +227,81 @@ export async function createTiles(
     }
   }
   return tiles;
+}
+
+/**
+ * 紧凑构建（大物量谱面）：不逐砖建对象。
+ *  - Twirl 只记 Int32Array 计数（导出时从差分无损还原）；
+ *  - 其它事件/装饰进稀疏 Map；direction/angle/_lastdir 存 Float32Array。
+ */
+async function createTilesCompact(
+  xLength: number,
+  opt: CreateTilesOptions,
+  cbs: CreateTilesCallbacks,
+): Promise<CompactTileStore> {
+  const store = new CompactTileStore(xLength);
+  const batchSize = Math.max(100, Math.floor(xLength / 100));
+  const twirlCountAt = new Int32Array(xLength + 1);
+
+  if (Array.isArray(opt.actions)) {
+    for (const action of opt.actions) {
+      const floor = action.floor;
+      if (floor == null || floor < 0 || floor >= xLength) continue;
+      if (isDecorationEvent(action)) {
+        let list = store.decorationsByFloor.get(floor);
+        if (!list) store.decorationsByFloor.set(floor, (list = []));
+        const { floor: _f, ...rest } = action as any;
+        list.push(rest as ActionData);
+        continue;
+      }
+      if (action.eventType === 'Twirl') {
+        twirlCountAt[floor]++;
+        continue;
+      }
+      let list = store.actionsByFloor.get(floor);
+      if (!list) store.actionsByFloor.set(floor, (list = []));
+      const { floor: _f, ...rest } = action as any;
+      list.push(rest as ActionData);
+    }
+  }
+  if (Array.isArray(opt.decorations)) {
+    for (const deco of opt.decorations) {
+      const floor = deco.floor;
+      if (floor == null || floor < 0 || floor >= xLength) continue;
+      let list = store.decorationsByFloor.get(floor);
+      if (!list) store.decorationsByFloor.set(floor, (list = []));
+      const { floor: _f, ...rest } = deco as any;
+      list.push(rest as ActionData);
+    }
+  }
+
+  const angleData = opt.angleData;
+  const angleDir: AngleState = { value: 180 };
+  let twirl = cbs.getTwirl();
+
+  for (let i = 0; i < xLength; i++) {
+    const add = twirlCountAt[i];
+    for (let k = 0; k < add; k++) cbs.onTwirl(++twirl);
+    const angle = parseAngle(angleData, i, angleDir, twirl % 2);
+    const dirRaw = angleData[i];
+    store.direction[i] = Number.isFinite(dirRaw) ? (dirRaw as number) : 0;
+    store.angle[i] = angle;
+    const lastRaw = i > 0 ? angleData[i - 1] : 0;
+    store.lastdir[i] = Number.isFinite(lastRaw) ? (lastRaw as number) : 0;
+    store.twirl[i] = twirl;
+
+    if (i % batchSize === 0 || i === xLength - 1) {
+      cbs.onProgress('relativeAngle', i + 1, xLength, {
+        tileIndex: i,
+        angle: angleData[i],
+        relativeAngle: angle,
+      });
+      if (i % (batchSize * 10) === 0) {
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+  }
+  return store;
 }
 
 export function changeAngles(tiles: Tile[]): Tile[] {

@@ -1,4 +1,5 @@
 import { AdofaiEvent, ActionData, LevelOptions, EventCallback, GuidCallback, Tile, ParseProvider, ParseProgressEvent, PrecomputedProgressEvents, LightweightPrecomputedData } from './interfaces';
+import { CompactTileStore } from './CompactTileStore';
 import pathData from '../pathdata';
 import exportAsADOFAI from './format'
 import BaseParser from '../parser';
@@ -34,7 +35,16 @@ export class Level {
     public actions!: AdofaiEvent[];
     public settings!: Record<string, any>;
     public __decorations!: AdofaiEvent[];
-    public tiles!: Tile[];
+    public tiles!: Tile[] | CompactTileStore;
+    /**
+     * 紧凑砖块存储选项（大物量谱面）：
+     *   - `false`（默认）：对象模式，行为与旧版完全一致；
+     *   - `true`：总是紧凑模式；
+     *   - `number`：砖数超过该阈值时自动紧凑。
+     * 紧凑模式下 `tiles` 是 CompactTileStore：保留 `length`，读取用 getAngle/getDirection/
+     * getActions 等；`edit(i)` 只物化单块砖；`export()` 无损（Twirl 由差分还原）。
+     */
+    private _compactOption: boolean | number = false;
     /** 预计算的事件缓存 */
     private _precomputedEvents: PrecomputedProgressEvents | null = null;
     /** 是否启用预计算模式 */
@@ -42,11 +52,12 @@ export class Level {
     /** 轻量级预计算数据（用于大物量渲染） */
     private _lightweightData: LightweightPrecomputedData | null = null;
 
-    constructor(opt: string | LevelOptions | Uint8Array | ArrayBuffer, provider?: ParseProvider) {
+    constructor(opt: string | LevelOptions | Uint8Array | ArrayBuffer, provider?: ParseProvider, options?: { compactTiles?: boolean | number }) {
         this._events = new Map();
         this.guidCallbacks = new Map();
         this._options = opt;
         this._provider = provider;
+        this._compactOption = options?.compactTiles ?? false;
     }
 
     generateGUID(): string {
@@ -139,10 +150,18 @@ export class Level {
         const positions: [number, number][] = skipPositionCalculation ? [] : new Array<[number, number]>(totalTiles);
         const twirlFlags = new Array<boolean>(totalTiles);
 
-        for (let i = 0; i < totalTiles; i++) {
-            const tile = this.tiles[i];
-            angles[i] = tile.angle ?? 0;
-            twirlFlags[i] = (tile.twirl ?? 0) % 2 === 1;
+        if (this.tiles instanceof CompactTileStore) {
+            const store = this.tiles;
+            for (let i = 0; i < totalTiles; i++) {
+                angles[i] = store.getAngle(i) ?? 0;
+                twirlFlags[i] = store.getTwirl(i) % 2 === 1;
+            }
+        } else {
+            for (let i = 0; i < totalTiles; i++) {
+                const tile = this.tiles[i];
+                angles[i] = tile.angle ?? 0;
+                twirlFlags[i] = (tile.twirl ?? 0) % 2 === 1;
+            }
         }
 
         if (!skipPositionCalculation) {
@@ -179,6 +198,14 @@ export class Level {
 
     public getTileRenderData(index: number): { angle: number, position: [number, number] | null, hasTwirl: boolean } | null {
         if (index < 0 || index >= this.tiles.length) return null;
+        if (this.tiles instanceof CompactTileStore) {
+            const store = this.tiles;
+            return {
+                angle: store.getAngle(index) ?? 0,
+                position: null,
+                hasTwirl: store.getTwirl(index) % 2 === 1
+            };
+        }
         const tile = this.tiles[index];
         return {
             angle: tile.angle ?? 0,
@@ -287,6 +314,10 @@ export class Level {
             this.tiles = [];
             let twirlCount = 0;
 
+            const compactOpt = this._compactOption;
+            const compact = compactOpt === true
+                || (typeof compactOpt === 'number' && this.angleData.length > compactOpt);
+
             createTiles(this.angleData.length, {
                 angleData: this.angleData,
                 actions: this.actions,
@@ -295,7 +326,7 @@ export class Level {
                 onProgress: (stage, current, total, data) => this._emitProgress(stage, current, total, data),
                 onTwirl: (count) => { twirlCount = count; },
                 getTwirl: () => twirlCount,
-            }).then(e => {
+            }, compact).then(e => {
                 this.tiles = e;
                 this._emitProgress('complete', this.angleData.length, this.angleData.length);
                 this.trigger('load', this);
@@ -342,11 +373,37 @@ export class Level {
     }
 
     public filterActionsByEventType(en: string): { index: number, action: ActionData }[] {
+        if (this.tiles instanceof CompactTileStore) {
+            const out: { index: number; action: ActionData }[] = [];
+            const store = this.tiles;
+            for (const [floor, actions] of store.actionsByFloor) {
+                for (const a of actions) {
+                    if (a.eventType === en) out.push({ index: floor, action: a });
+                }
+            }
+            return out;
+        }
         return filterActions(this.tiles, en);
     }
 
     public getActionsByIndex(en: string, index: number): { count: number, actions: ActionData[] } {
+        if (this.tiles instanceof CompactTileStore) {
+            const actions = this.tiles.getActions(index).filter(a => a.eventType === en);
+            return { count: actions.length, actions };
+        }
         return getActions(this.tiles, en, index);
+    }
+
+    /** 紧凑模式 → 对象数组（结构编辑或需要 Tile[] 的 API 前调用）。 */
+    public toObjectTiles(): Tile[] {
+        if (this.tiles instanceof CompactTileStore) {
+            this.tiles = this.tiles.toTileArray();
+        }
+        return this.tiles as Tile[];
+    }
+
+    public isCompactTiles(): boolean {
+        return this.tiles instanceof CompactTileStore;
     }
 
     public calculateTileCoordinates(): void {
@@ -354,55 +411,59 @@ export class Level {
     }
 
     public calculateTilePosition(): number[][] {
+        const tiles = this.toObjectTiles();
         return calculateTilePositions(
             this.angleData,
-            this.tiles,
+            tiles,
             this.actions,
             (stage, current, total, data) => this._emitProgress(stage as ParseProgressEvent['stage'], current, total, data)
         );
     }
 
     public floorOperation(info: { type: 'append' | 'insert' | 'delete', direction: number, id?: number } = { type: 'append', direction: 0 }): void {
+        const tiles = this.toObjectTiles();
         switch (info.type) {
             case 'append':
                 this.appendFloor(info);
                 break;
             case 'insert':
                 if (typeof info.id === 'number') {
-                    this.tiles.splice(info.id, 0, {
+                    tiles.splice(info.id, 0, {
                         direction: info.direction || 0,
                         angle: 0,
                         actions: [],
                         addDecorations: [],
-                        _lastdir: this.tiles[info.id - 1].direction,
-                        twirl: this.tiles[info.id - 1].twirl
+                        _lastdir: tiles[info.id - 1].direction,
+                        twirl: tiles[info.id - 1].twirl
                     });
                 }
                 break;
             case 'delete':
                 if (typeof info.id === 'number') {
-                    this.tiles.splice(info.id, 1);
+                    tiles.splice(info.id, 1);
                 }
                 break;
         }
-        changeAngles(this.tiles);
+        changeAngles(tiles);
     }
 
     public appendFloor(args: { direction: number }): void {
-        this.tiles.push({
+        const tiles = this.toObjectTiles();
+        tiles.push({
             direction: args.direction,
             angle: 0,
             actions: [],
             addDecorations: [],
-            _lastdir: this.tiles[this.tiles.length - 1].direction,
-            twirl: this.tiles[this.tiles.length - 1].twirl,
+            _lastdir: tiles[tiles.length - 1].direction,
+            twirl: tiles[tiles.length - 1].twirl,
             extraProps: {}
         });
-        changeAngles(this.tiles);
+        changeAngles(tiles);
     }
 
     public clearDeco(): boolean {
-        this.tiles = effectProcessor.clearDecorations(this.tiles) as Tile[];
+        const tiles = this.toObjectTiles();
+        this.tiles = effectProcessor.clearDecorations(tiles) as Tile[];
         return true;
     }
 
@@ -411,20 +472,38 @@ export class Level {
     }
 
     public clearEvent(preset: { type: EffectCleanerType | string, events: string[] }): void {
+        const tiles = this.toObjectTiles();
         if (preset.type == EffectCleanerType.include) {
-            this.tiles = effectProcessor.keepEvents(preset.events, this.tiles) as Tile[];
+            this.tiles = effectProcessor.keepEvents(preset.events, tiles) as Tile[];
         } else if (preset.type == EffectCleanerType.exclude) {
-            this.tiles = effectProcessor.clearEvents(preset.events, this.tiles) as Tile[];
+            this.tiles = effectProcessor.clearEvents(preset.events, tiles) as Tile[];
         }
     }
 
     public export(type: 'string' | 'object', indent: number, useAdofaiStyle: boolean = true, indentChar: string, indentStep: number): string | Record<string, any> {
-        const ADOFAI = {
-            angleData: flattenAngleDatas(this.tiles),
-            settings: this.settings,
-            actions: flattenActionsWithFloor(this.tiles),
-            decorations: flattenDecorationsWithFloor(this.tiles)
+        let ADOFAI: {
+            angleData: number[];
+            settings: Record<string, any>;
+            actions: AdofaiEvent[];
+            decorations: AdofaiEvent[];
         };
+        if (this.tiles instanceof CompactTileStore && !this.tiles.hasEdits()) {
+            // 紧凑快速导出：不物化 Tile 对象，Twirl 从 twirl 数组差分还原
+            ADOFAI = {
+                angleData: this.tiles.flattenAngleData(),
+                settings: this.settings,
+                actions: this.tiles.flattenActions(),
+                decorations: this.tiles.flattenDecorations(),
+            };
+        } else {
+            const tiles = this.toObjectTiles();
+            ADOFAI = {
+                angleData: flattenAngleDatas(tiles),
+                settings: this.settings,
+                actions: flattenActionsWithFloor(tiles),
+                decorations: flattenDecorationsWithFloor(tiles)
+            };
+        }
         return type === 'object' ? ADOFAI : exportAsADOFAI(ADOFAI, indent, useAdofaiStyle, indentChar, indentStep);
     }
 }
