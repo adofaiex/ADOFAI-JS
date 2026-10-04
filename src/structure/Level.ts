@@ -213,6 +213,13 @@ export class Level {
                 return;
             }
 
+            // 源数据（原始 JSON 字符串 / 构造对象引用）只在解析阶段需要，但此前一直由
+            // `_options` 常驻在 Level 实例上（10MB 谱面 ≈ 20MB UTF-16 字符串；百万砖
+            // 谱面下白白占内存）。解析完成后立即释放；本地 `opt` 同样置空，避免异步的
+            // createTiles 期间闭包继续持有源字符串。如需重新 load，请用新的 Level 实例。
+            this._options = null as any;
+            opt = null as any;
+
             const hasPathData = options && typeof options === 'object' && options !== null && typeof options.pathData !== 'undefined';
             const hasAngleData = options && typeof options === 'object' && options !== null && typeof options.angleData !== 'undefined';
 
