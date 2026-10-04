@@ -331,6 +331,18 @@ export class Level {
                 getTwirl: () => twirlCount,
             }, compact).then(e => {
                 this.tiles = e;
+                if (compact && Array.isArray(this.actions)) {
+                    // 紧凑模式：Twirl 的语义已完整保存在 store.twirl（累计计数）里，
+                    // 这里把 600 万级的 Twirl 事件对象从 actions 中剥离（本谱约占
+                    // 几百 MB 常驻堆）。导出时 CompactTileStore.flattenActions 会
+                    // 从 twirl 差分无损还原成一条条 Twirl 事件。
+                    const keptActions: AdofaiEvent[] = [];
+                    for (let i = 0; i < this.actions.length; i++) {
+                        const a = this.actions[i];
+                        if (a.eventType !== 'Twirl') keptActions.push(a);
+                    }
+                    this.actions = keptActions;
+                }
                 this._emitProgress('complete', this.angleData.length, this.angleData.length);
                 this.trigger('load', this);
                 resolve(true);
