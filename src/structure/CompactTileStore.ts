@@ -20,12 +20,12 @@ const EMPTY_DECOS: ActionData[] = [];
  *   - `toTileArray()` 全量物化（结构编辑/导出需要时由 Level 调用）。
  */
 export class CompactTileStore {
-    readonly length: number;
-    readonly direction: Float32Array;
-    readonly angle: Float32Array;
-    readonly lastdir: Float32Array;
+    length: number;
+    direction: Float32Array;
+    angle: Float32Array;
+    lastdir: Float32Array;
     /** 累计 Twirl 计数（第 i 砖处理完自身 Twirl 事件后的值；差分即该砖的 Twirl 数） */
-    readonly twirl: Int32Array;
+    twirl: Int32Array;
     /** floor -> 非 Twirl actions（已去掉 floor 字段） */
     readonly actionsByFloor: Map<number, ActionData[]>;
     /** floor -> decorations（已去掉 floor 字段） */
@@ -115,9 +115,36 @@ export class CompactTileStore {
         return t;
     }
 
-    /** 全量物化成普通 Tile 数组（结构编辑/导出用；内存回到对象模式水平）。 */
-    toTileArray(): Tile[] {
+    /**
+     * 末尾追加一块砖（Player 的 appendExtraTile 用）。
+     * 只在末尾扩展：typed array 复制一次，O(n) 但仅发生一次。
+     */
+    appendTile(direction: number, angle: number, lastdir: number, twirl: number): number {
         const n = this.length;
+        const growF32 = (arr: Float32Array): Float32Array => {
+            const a = new Float32Array(n + 1);
+            a.set(arr);
+            return a;
+        };
+        const growI32 = (arr: Int32Array): Int32Array => {
+            const a = new Int32Array(n + 1);
+            a.set(arr);
+            return a;
+        };
+        this.direction = growF32(this.direction);
+        this.angle = growF32(this.angle);
+        this.lastdir = growF32(this.lastdir);
+        this.twirl = growI32(this.twirl);
+        this.direction[n] = direction;
+        this.angle[n] = angle;
+        this.lastdir[n] = lastdir;
+        this.twirl[n] = twirl;
+        this.length = n + 1;
+        return this.length;
+    }
+
+    /** 全量物化成普通 Tile 数组（结构编辑/导出用；内存回到对象模式水平）。 */
+    toTileArray(): Tile[] {        const n = this.length;
         const out: Tile[] = new Array(n);
         for (let i = 0; i < n; i++) {
             const o = this.overlay?.get(i);
